@@ -12,8 +12,8 @@ binding = "ASSETS"
 # as the Android app's DataStore/Room split, just flattened into one store.
 [[kv_namespaces]]
 binding = "DUCK_KV"
-id = "REPLACE_WITH_YOUR_KV_NAMESPACE_ID"
-# preview_id = "REPLACE_WITH_YOUR_PREVIEW_KV_NAMESPACE_ID"  # needed for `wrangler dev` — see README
+id = "df92715b504f46778f225d49d714490c"
+preview_id = "fdee63c88f59485fb8ab21723f34fa83"  # needed for `wrangler dev` — see README
 
 # Exactly 3 triggers — the free-tier cap per Worker. See README for why each exists.
 [triggers]
