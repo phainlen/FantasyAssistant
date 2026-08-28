@@ -1,0 +1,27 @@
+name = "duck-assistant"
+main = "src/worker/index.ts"
+compatibility_date = "2026-06-01"
+
+# Static frontend (public/) served alongside the API by the same Worker.
+[assets]
+directory = "./public"
+binding = "ASSETS"
+
+# KV is used for everything: league config, cached players, lineup recommendations,
+# trend alert dedup, push subscriptions, and tunable alert thresholds — same shape
+# as the Android app's DataStore/Room split, just flattened into one store.
+[[kv_namespaces]]
+binding = "DUCK_KV"
+id = "REPLACE_WITH_YOUR_KV_NAMESPACE_ID"
+# preview_id = "REPLACE_WITH_YOUR_PREVIEW_KV_NAMESPACE_ID"  # needed for `wrangler dev` — see README
+
+# Exactly 3 triggers — the free-tier cap per Worker. See README for why each exists.
+[triggers]
+crons = [
+  "0 */6 * * *",   # replan lineup + recompute this week's kickoff waves
+  "*/15 * * * *",  # check whether any kickoff wave's reminder is due
+  "10 */6 * * *"   # check for new trend alerts (offset 10 min so it doesn't collide with replanning)
+]
+
+[observability]
+enabled = true

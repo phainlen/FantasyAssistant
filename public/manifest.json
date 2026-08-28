@@ -1,0 +1,11 @@
+{
+  "name": "Duck Assistant",
+  "short_name": "Duck",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#F7F7F5",
+  "theme_color": "#1B4332",
+  "icons": [
+    { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png" }
+  ]
+}
