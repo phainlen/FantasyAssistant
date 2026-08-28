@@ -4,7 +4,7 @@ import type { Env } from "../index";
 
 export const pushRoute = new Hono<{ Bindings: Env }>();
 
-pushRoute.get("/vapid-public-key", (c) => c.json({ publicKey: c.env.VAPID_PUBLIC_KEY }));
+// pushRoute.get("/vapid-public-key", (c) => c.json({ publicKey: c.env.VAPID_PUBLIC_KEY }));
 
 pushRoute.post("/subscribe", async (c) => {
   const body = await c.req.json<{
