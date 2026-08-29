@@ -7,17 +7,15 @@ import type { ScheduleEvent } from "../domain/kickoffWaveCalculator";
  * becomes an issue.
  */
 export async function getWeekSchedule(week: number): Promise<ScheduleEvent[]> {
-  const url = `https://site.api.espn.com/apis/site/v2/sports/football/nfl/scoreboard?week=${week}`;
+  const url = `https://site.api.espn.com/apis/site/v2/sports/football/nfl/scoreboard?week=${week}&seasontype=2`;
   const res = await fetch(url);
   if (!res.ok) throw new Error(`ESPN scoreboard fetch failed: HTTP ${res.status}`);
-
   const data = (await res.json()) as {
     events: Array<{
       date: string;
       competitions: Array<{ competitors: Array<{ team: { abbreviation: string } }> }>;
     }>;
   };
-
   return data.events.map((event) => ({
     kickoffEpochMillis: Date.parse(event.date),
     teamAbbreviations: event.competitions.flatMap((c) => c.competitors.map((comp) => comp.team.abbreviation))
