@@ -38,6 +38,7 @@ export interface CachedPlayer {
   status: string | null;
   injuryStatus: string | null;
   gsisId: string | null;
+  espnId: string | null;
 }
 
 export interface PushSubscriptionRecord {
