@@ -1,5 +1,5 @@
 import { KvStore } from "../lib/kv";
-import { sleeper } from "../lib/sleeper";
+import { sleeper, resolveFantasyWeek } from "../lib/sleeper";
 import { getWeekSchedule } from "../lib/espnSchedule";
 import { refreshPlayerCacheIfStale, startingSlotsFor, buildCandidates, teamsForPlayers } from "../lib/sleeperRepo";
 import { optimizeLineup } from "../domain/lineupOptimizer";
@@ -11,9 +11,8 @@ export async function planLineup(kv: KvStore): Promise<void> {
   if (!config) return; // not set up yet
 
   await refreshPlayerCacheIfStale(kv);
-
   const nflState = await sleeper.getNflState();
-  const week = nflState.week;
+  const week = resolveFantasyWeek(nflState);
   const season = nflState.season;
 
   const league = await sleeper.getLeague(config.leagueId);
@@ -25,14 +24,12 @@ export async function planLineup(kv: KvStore): Promise<void> {
   const candidates = await buildCandidates(kv, config.leagueId, season, playerIds, week, league.scoring_settings);
   const slots = startingSlotsFor(league);
   const recommendation = optimizeLineup(slots, candidates);
-
   await kv.saveLineupForWeek(week, recommendation);
 
   const starterIds = recommendation.map((r) => r.player?.playerId).filter((id): id is string => !!id);
   const teams = await teamsForPlayers(kv, starterIds);
   const weekEvents = await getWeekSchedule(week);
   const waves = computeWaves(teams, weekEvents);
-
   const storedWaves: StoredWave[] = waves.map((w) => ({ ...w, week, reminderSent: false }));
   await kv.saveWavesForWeek(week, storedWaves);
 }
