@@ -19,7 +19,8 @@ export async function refreshPlayerCacheIfStale(kv: KvStore): Promise<void> {
       team: p.team,
       status: p.status,
       injuryStatus: p.injury_status,
-      gsisId: p.gsis_id
+      gsisId: p.gsis_id,
+      espnId: p.espn_id
     };
   }
   await kv.savePlayersCache(entries);
