@@ -98,3 +98,11 @@ export async function teamsForPlayers(kv: KvStore, playerIds: string[]): Promise
   }
   return result;
 }
+
+export function buildEspnToSleeperMap(playersCache: Record<string, CachedPlayer>): Map<string, string> {
+  const map = new Map<string, string>();
+  for (const [sleeperId, player] of Object.entries(playersCache)) {
+    if (player.espnId) map.set(player.espnId, sleeperId);
+  }
+  return map;
+}
