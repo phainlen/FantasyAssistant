@@ -30,5 +30,15 @@ export async function checkTrends(kv: KvStore, env: PushEnv): Promise<void> {
     league.scoring_settings,
     settings
   );
-  // ...rest unchanged
+
+  if (newAlerts.length === 0) return;
+  const subscriptions = await kv.getPushSubscriptions();
+  for (const alert of newAlerts) {
+    const title = ${TRIGGER_LABELS[alert.triggerType]}: ${alert.playerName} (${alert.position}${alert.nflTeam ?  - ${alert.nflTeam} : ""});
+    const body = ${alert.detail} ${describeOwnership(alert.ownership)}.;
+    for (const sub of subscriptions) {
+      const result = await sendPush(env, sub, title, body);
+      if (result === "expired") await kv.removePushSubscription(sub.endpoint);
+    }
+  }
 }
