@@ -24,7 +24,7 @@ setupRoute.post("/", async (c) => {
     const nflState = await sleeper.getNflState();
     const user = await sleeper.getUser(body.username);
     const leagues = await sleeper.getLeaguesForUser(user.user_id, nflState.season);
-    const league = leagues.find((l) => l.name.toLowerCase() === body.leagueName.toLowerCase());
+    const league = leagues.find((l) => l.name.trim().toLowerCase() === body.leagueName.trim().toLowerCase());
     if (!league) {
       return c.json({ error: `No league named "${body.leagueName}" found for ${body.username}` }, 404);
     }
