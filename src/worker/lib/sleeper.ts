@@ -53,6 +53,10 @@ async function getJson<T>(url: string): Promise<T> {
   return res.json() as Promise<T>;
 }
 
+export function resolveFantasyWeek(nflState: { week: number; season_type: string }): number {
+  return nflState.season_type === "regular" ? nflState.week : 1;
+}
+
 export const sleeper = {
   getUser: (usernameOrId: string) => getJson<SleeperUser>(`${BASE}/v1/user/${usernameOrId}`),
 
