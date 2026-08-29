@@ -1,30 +1,19 @@
 import { KvStore } from "../lib/kv";
 import { reminderTimeMillis } from "../domain/kickoffWaveCalculator";
 import { sendPush, type PushEnv } from "../lib/push";
-import { sleeper } from "../lib/sleeper";
+import { sleeper, resolveFantasyWeek } from "../lib/sleeper";
 
-/**
- * Runs every 15 minutes. Vercel-style "schedule one job per wave" isn't available on
- * Cloudflare Cron Triggers (no arbitrary one-off delays), so instead this polls: for each
- * wave that hasn't been notified yet, check whether now has crossed the reminder threshold
- * (kickoff minus the configured lead time). A 15-minute poll interval means the reminder can
- * fire up to ~15 minutes later than the exact configured time — an acceptable trade for a
- * free-tier, poll-based design.
- */
 export async function checkWaveReminders(kv: KvStore, env: PushEnv): Promise<void> {
   const config = await kv.getLeagueConfig();
   if (!config) return;
 
   const nflState = await sleeper.getNflState();
-  const week = nflState.week;
+  const week = resolveFantasyWeek(nflState);
   const settings = await kv.getTrendSettings();
-
   const waves = await kv.getWavesForWeek(week);
   if (waves.length === 0) return;
-
   const lineup = await kv.getLineupForWeek(week);
   if (!lineup) return;
-
   const now = Date.now();
   const subscriptions = await kv.getPushSubscriptions();
   if (subscriptions.length === 0) return;
