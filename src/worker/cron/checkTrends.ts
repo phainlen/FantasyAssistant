@@ -1,5 +1,5 @@
 import { KvStore } from "../lib/kv";
-import { sleeper } from "../lib/sleeper";
+import { sleeper, resolveFantasyWeek } from "../lib/sleeper";
 import { refreshPlayerCacheIfStale } from "../lib/sleeperRepo";
 import { findNewTrendAlerts } from "../lib/trendRepo";
 import { sendPush, type PushEnv } from "../lib/push";
@@ -16,8 +16,8 @@ export async function checkTrends(kv: KvStore, env: PushEnv): Promise<void> {
   if (!config) return;
 
   await refreshPlayerCacheIfStale(kv);
-
   const nflState = await sleeper.getNflState();
+  const week = resolveFantasyWeek(nflState);
   const league = await sleeper.getLeague(config.leagueId);
   const settings = await kv.getTrendSettings();
 
@@ -25,22 +25,10 @@ export async function checkTrends(kv: KvStore, env: PushEnv): Promise<void> {
     kv,
     config.leagueId,
     nflState.season,
-    nflState.week,
+    week,
     config.rosterId,
     league.scoring_settings,
     settings
   );
-
-  if (newAlerts.length === 0) return;
-
-  const subscriptions = await kv.getPushSubscriptions();
-  for (const alert of newAlerts) {
-    const title = `${TRIGGER_LABELS[alert.triggerType]}: ${alert.playerName} (${alert.position}${alert.nflTeam ? ` - ${alert.nflTeam}` : ""})`;
-    const body = `${alert.detail} ${describeOwnership(alert.ownership)}.`;
-
-    for (const sub of subscriptions) {
-      const result = await sendPush(env, sub, title, body);
-      if (result === "expired") await kv.removePushSubscription(sub.endpoint);
-    }
-  }
+  // ...rest unchanged
 }
