@@ -3,6 +3,12 @@ import { KvStore, type CachedPlayer } from "./kv";
 import { eligiblePositionsFor, isStartingSlot, type CandidatePlayer, type RosterSlot } from "../domain/lineupOptimizer";
 import { getEspnProjections } from "./espnProjections";
 import { computeConsensusProjections, type ExternalProjection } from "./projectionSources";
+import { ESPN_TEAM_ID_TO_SLEEPER_ABBREV } from "./espnTeamMap";
+
+// Translate the ESPN Defense ID to a Sleeper ID
+function translateEspnDstId(espnProTeamId: number): string | undefined {
+  return ESPN_TEAM_ID_TO_SLEEPER_ABBREV[espnProTeamId];
+}
 
 const PLAYER_CACHE_MAX_AGE_MILLIS = 24 * 60 * 60 * 1000;
 
