@@ -66,7 +66,8 @@ export async function getEspnProjections(
       playerId: String(entry.player.id),
       position,
       espnPoints: projectedStat.appliedTotal,
-      proTeamId: position === "DST" ? entry.player.proTeamId : undefined
+      proTeamId: entry.player.proTeamId,
+      fullName: entry.player.fullName
     });
   }
 
