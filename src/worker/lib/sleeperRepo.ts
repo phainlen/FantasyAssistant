@@ -7,16 +7,24 @@ import { ESPN_TEAM_ID_TO_SLEEPER_ABBREV } from "./espnTeamMap";
 
 const PLAYER_CACHE_MAX_AGE_MILLIS = 24 * 60 * 60 * 1000;
 
+// lib/sleeperRepo.ts — updated refreshPlayerCacheIfStale
 export async function refreshPlayerCacheIfStale(kv: KvStore): Promise<void> {
   const age = await kv.playersCacheAgeMillis();
   if (age !== null && age < PLAYER_CACHE_MAX_AGE_MILLIS) return;
   const remote = await sleeper.getAllPlayers();
   const entries: Record<string, CachedPlayer> = {};
   for (const [id, p] of Object.entries(remote)) {
-    if (!p.player_id || !p.full_name) continue;
+    if (!p.player_id) continue;
+
+    // Team defenses have no full_name in Sleeper's data (confirmed) — synthesize
+    // one from the team abbreviation so they aren't dropped from the cache.
+    const isDefense = p.position === "DEF";
+    const fullName = p.full_name ?? (isDefense ? `${p.team ?? id} Defense` : null);
+    if (!fullName) continue;
+
     entries[id] = {
       playerId: p.player_id,
-      fullName: p.full_name,
+      fullName,
       position: p.position,
       team: p.team,
       status: p.status,
