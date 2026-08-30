@@ -1,16 +1,12 @@
 import { Hono } from "hono";
+import { KvStore } from "../lib/kv";
+import { sleeper } from "../lib/sleeper";
 import { getEspnProjections } from "../lib/espnProjections";
 import type { Env } from "../index";
 
 export const debugRoute = new Hono<{ Bindings: Env }>();
 
-/**
- * TEMPORARY — fetches ESPN's live team list and resolves each $ref to build
- * a confirmed proTeamId -> abbreviation map. Delete this route once the
- * mapping is confirmed correct and hardcoded elsewhere.
- */
-// in debug.ts
-import { KvStore } from "../lib/kv";
+// ...existing /espn-projections and /espn-teams routes unchanged...
 
 debugRoute.get("/player-cache", async (c) => {
   const kv = new KvStore(c.env.DUCK_KV);
