@@ -8,7 +8,6 @@ import { KvStore } from "./lib/kv";
 import { planLineup } from "./cron/planLineup";
 import { checkWaveReminders } from "./cron/checkWaveReminders";
 import { checkTrends } from "./cron/checkTrends";
-import { debugRoute } from "./routes/debug";
 
 export interface Env {
   DUCK_KV: KVNamespace;
@@ -25,7 +24,6 @@ app.route("/api/settings", settingsRoute);
 app.route("/api/lineup", lineupRoute);
 app.route("/api/trends", trendsRoute);
 app.route("/api/push", pushRoute);
-app.route("/api/debug", debugRoute);
 
 // Anything that isn't an /api/* route falls through to the static frontend (public/).
 app.notFound((c) => c.env.ASSETS.fetch(c.req.raw));
