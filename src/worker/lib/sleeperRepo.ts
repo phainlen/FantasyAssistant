@@ -35,25 +35,43 @@ export function startingSlotsFor(league: { roster_positions: string[] }): Roster
 }
 
 /**
- * Maps ESPN player IDs back to Sleeper player IDs using the espn_id field Sleeper
- * includes on each cached player. Not every player has espn_id populated, so this
- * is best-effort — unmatched entries are dropped. Does not apply to DST entries,
- * which are translated separately via proTeamId (see translateEspnDstId).
+ * Normalizes a player name for fuzzy matching across sources: lowercase, strips
+ * punctuation and common suffixes (Jr., Sr., II, III, IV). Not perfect — a last
+ * resort for when espn_id isn't populated, which turns out to be most players
+ * (confirmed live: espn_id is sparsely populated, skewing toward veteran players).
  */
+function normalizeName(name: string): string {
+  return name
+    .toLowerCase()
+    .replace(/[.'']/g, "")
+    .replace(/\b(jr|sr|ii|iii|iv)\b/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
 function buildEspnToSleeperMap(playersCache: Record<string, CachedPlayer>): Map<string, string> {
   const map = new Map<string, string>();
   for (const [sleeperId, player] of Object.entries(playersCache)) {
-    if (player.espnId) map.set(player.espnId, sleeperId);
+    if (player.espnId) map.set(String(player.espnId), sleeperId);
   }
   return map;
 }
 
 /**
- * DST entries have no espn_id on Sleeper's side — Sleeper represents defenses using
- * the team abbreviation itself as the player id (e.g. "SF"). ESPN represents them by
- * proTeamId. Confirmed live against ESPN's team endpoint on 2026-08-30 — see
- * espnTeamMap.ts for details/caveats.
+ * Fallback for when espn_id isn't populated: key = "normalizedName|team".
+ * Built from Sleeper's cache; ESPN entries are looked up against it using their
+ * own fullName + proTeamId (translated to Sleeper's abbreviation convention).
  */
+function buildNameTeamMap(playersCache: Record<string, CachedPlayer>): Map<string, string> {
+  const map = new Map<string, string>();
+  for (const [sleeperId, player] of Object.entries(playersCache)) {
+    if (!player.team) continue;
+    const key = `${normalizeName(player.fullName)}|${player.team}`;
+    map.set(key, sleeperId);
+  }
+  return map;
+}
+
 function translateEspnDstId(espnProTeamId: number): string | undefined {
   return ESPN_TEAM_ID_TO_SLEEPER_ABBREV[espnProTeamId];
 }
@@ -93,6 +111,8 @@ export async function buildCandidates(
 
   if (needsFallback) {
     const espnToSleeper = buildEspnToSleeperMap(playersCache);
+    const nameTeamToSleeper = buildNameTeamMap(playersCache);
+
     let espnProjections: ExternalProjection[] = [];
     try {
       const rawEspn = await getEspnProjections(season, week);
@@ -102,8 +122,22 @@ export async function buildCandidates(
             const sleeperId = p.proTeamId !== undefined ? translateEspnDstId(p.proTeamId) : undefined;
             return sleeperId ? { ...p, playerId: sleeperId } : null;
           }
-          const sleeperId = espnToSleeper.get(p.playerId);
-          return sleeperId ? { ...p, playerId: sleeperId } : null;
+
+          // Primary: espn_id match
+          const byId = espnToSleeper.get(p.playerId);
+          if (byId) return { ...p, playerId: byId };
+
+          // Fallback: normalized name + team match
+          if (p.fullName && p.proTeamId !== undefined) {
+            const team = translateEspnDstId(p.proTeamId);
+            if (team) {
+              const key = `${normalizeName(p.fullName)}|${team}`;
+              const byName = nameTeamToSleeper.get(key);
+              if (byName) return { ...p, playerId: byName };
+            }
+          }
+
+          return null;
         })
         .filter((p): p is ExternalProjection => p !== null);
     } catch (err) {
