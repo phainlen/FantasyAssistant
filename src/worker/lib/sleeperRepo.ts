@@ -5,11 +5,6 @@ import { getEspnProjections } from "./espnProjections";
 import { computeConsensusProjections, type ExternalProjection } from "./projectionSources";
 import { ESPN_TEAM_ID_TO_SLEEPER_ABBREV } from "./espnTeamMap";
 
-// Translate the ESPN Defense ID to a Sleeper ID
-function translateEspnDstId(espnProTeamId: number): string | undefined {
-  return ESPN_TEAM_ID_TO_SLEEPER_ABBREV[espnProTeamId];
-}
-
 const PLAYER_CACHE_MAX_AGE_MILLIS = 24 * 60 * 60 * 1000;
 
 export async function refreshPlayerCacheIfStale(kv: KvStore): Promise<void> {
@@ -41,9 +36,9 @@ export function startingSlotsFor(league: { roster_positions: string[] }): Roster
 
 /**
  * Maps ESPN player IDs back to Sleeper player IDs using the espn_id field Sleeper
- * includes on each cached player. Not every player has espn_id populated (seen empty
- * on at least some Sleeper records), so this is best-effort — unmatched ESPN entries
- * are dropped rather than guessed at.
+ * includes on each cached player. Not every player has espn_id populated, so this
+ * is best-effort — unmatched entries are dropped. Does not apply to DST entries,
+ * which are translated separately via proTeamId (see translateEspnDstId).
  */
 function buildEspnToSleeperMap(playersCache: Record<string, CachedPlayer>): Map<string, string> {
   const map = new Map<string, string>();
@@ -54,15 +49,15 @@ function buildEspnToSleeperMap(playersCache: Record<string, CachedPlayer>): Map<
 }
 
 /**
- * Builds candidate players with a trailing-3-game-average projection, pulled from this
- * league's own scored matchup history. Sleeper has no projections endpoint — same honest
- * placeholder as the Android app; swap in a real feed by replacing this function's projection
- * source, everything downstream (the optimizer) is unaffected.
- *
- * When trailing data is unavailable (Week 1 / preseason), falls back to a consensus
- * projection blended from external sources (currently ESPN; more can be added to
- * projectionSources.ts).
+ * DST entries have no espn_id on Sleeper's side — Sleeper represents defenses using
+ * the team abbreviation itself as the player id (e.g. "SF"). ESPN represents them by
+ * proTeamId. Confirmed live against ESPN's team endpoint on 2026-08-30 — see
+ * espnTeamMap.ts for details/caveats.
  */
+function translateEspnDstId(espnProTeamId: number): string | undefined {
+  return ESPN_TEAM_ID_TO_SLEEPER_ABBREV[espnProTeamId];
+}
+
 export async function buildCandidates(
   kv: KvStore,
   leagueId: string,
@@ -93,8 +88,6 @@ export async function buildCandidates(
     }
   }
 
-  // Only fetch/build consensus projections if at least one candidate will actually need
-  // the fallback — avoids the ESPN call entirely once real trailing data exists.
   const needsFallback = playerIds.some((id) => (scoresByPlayer.get(id) ?? []).length === 0);
   let consensusByPlayer = new Map<string, number>();
 
@@ -105,6 +98,10 @@ export async function buildCandidates(
       const rawEspn = await getEspnProjections(season, week);
       espnProjections = rawEspn
         .map((p) => {
+          if (p.position === "DST") {
+            const sleeperId = p.proTeamId !== undefined ? translateEspnDstId(p.proTeamId) : undefined;
+            return sleeperId ? { ...p, playerId: sleeperId } : null;
+          }
           const sleeperId = espnToSleeper.get(p.playerId);
           return sleeperId ? { ...p, playerId: sleeperId } : null;
         })
@@ -112,7 +109,6 @@ export async function buildCandidates(
     } catch (err) {
       console.error("ESPN projections fetch failed", err);
     }
-    // More sources (e.g. FantasyPros) get merged into this same array once added.
     consensusByPlayer = computeConsensusProjections(espnProjections);
   }
 
