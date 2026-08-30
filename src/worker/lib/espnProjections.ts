@@ -1,22 +1,12 @@
-// lib/espnProjections.ts
 import type { ExternalProjection } from "./projectionSources";
 
-/**
- * ESPN's fantasy football projections endpoint. Undocumented/unofficial.
- * Base URL confirmed as of 2026: lm-api-reads.fantasy.espn.com (moved from
- * fantasy.espn.com in ~April 2024). Position ID map and X-Fantasy-Filter usage
- * confirmed against community-verified examples. The exact filter shape needed
- * to scope to a specific week's *projected* (vs actual) stats, and the
- * statSourceId convention, are NOT independently verified — treat the stat
- * parsing below as a best guess pending a live response check.
- */
 const POSITION_ID_MAP: Record<number, string> = {
   1: "QB",
   2: "RB",
   3: "WR",
   4: "TE",
   5: "K",
-  16: "DST" // confirmed: ESPN uses DST, not DEF — reconcile with your domain model's naming
+  16: "DST"
 };
 
 interface EspnPlayerEntry {
@@ -24,8 +14,9 @@ interface EspnPlayerEntry {
     id: number;
     fullName: string;
     defaultPositionId: number;
+    proTeamId: number;
     stats?: Array<{
-      statSourceId: number; // unverified: assumed 1 = projected, 0 = actual
+      statSourceId: number;
       seasonId: number;
       scoringPeriodId: number;
       appliedTotal?: number;
@@ -74,7 +65,8 @@ export async function getEspnProjections(
     projections.push({
       playerId: String(entry.player.id),
       position,
-      espnPoints: projectedStat.appliedTotal
+      espnPoints: projectedStat.appliedTotal,
+      proTeamId: position === "DST" ? entry.player.proTeamId : undefined
     });
   }
 
