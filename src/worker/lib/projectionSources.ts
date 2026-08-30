@@ -3,6 +3,7 @@ export interface ExternalProjection {
   position: string;
   espnPoints?: number;
   fantasyProsRank?: number;
+  proTeamId?: number; // only populated for DST entries; used for team-based matching instead of espn_id
 }
 
 // Rough points-per-position ceiling used to convert a 0-100 consensus score
