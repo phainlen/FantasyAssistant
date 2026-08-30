@@ -2,7 +2,7 @@
 import type { ScheduleEvent } from "../domain/kickoffWaveCalculator";
 
 export async function getWeekSchedule(week: number): Promise<ScheduleEvent[]> {
-  const url = `https://site.api.espn.com/apis/site/v2/sports/football/nfl/scoreboard?week=${week}&seasontype=2`;
+  const url = `https://site.web.api.espn.com/apis/site/v2/sports/football/nfl/scoreboard?week=${week}&seasontype=2`;
   const res = await fetch(url, {
     headers: {
       "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
