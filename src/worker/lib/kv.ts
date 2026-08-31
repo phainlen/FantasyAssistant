@@ -18,6 +18,7 @@ export interface TrendAlertSettings {
   snapCountSpikeMultiplier: number;
   snapCountMinJumpPct: number;
   lineupReminderHoursBeforeLock: number;
+  swapAlertMinPointsEdge: number; // free agent's recent avg must beat your weakest eligible roster player by at least this many points
 }
 
 export const DEFAULT_TREND_SETTINGS: TrendAlertSettings = {
@@ -27,7 +28,8 @@ export const DEFAULT_TREND_SETTINGS: TrendAlertSettings = {
   targetShareMinJumpPct: 8,
   snapCountSpikeMultiplier: 1.3,
   snapCountMinJumpPct: 15,
-  lineupReminderHoursBeforeLock: 3
+  lineupReminderHoursBeforeLock: 3,
+  swapAlertMinPointsEdge: 3
 };
 
 export interface CachedPlayer {
