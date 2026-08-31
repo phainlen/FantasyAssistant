@@ -8,6 +8,7 @@ import { KvStore } from "./lib/kv";
 import { planLineup } from "./cron/planLineup";
 import { checkWaveReminders } from "./cron/checkWaveReminders";
 import { checkTrends } from "./cron/checkTrends";
+// Re-enable for local debugging
 //import { debugRoute } from "./routes/debug";
 
 export interface Env {
@@ -25,6 +26,7 @@ app.route("/api/settings", settingsRoute);
 app.route("/api/lineup", lineupRoute);
 app.route("/api/trends", trendsRoute);
 app.route("/api/push", pushRoute);
+// Re-enable for local debugging
 //app.route("/api/debug", debugRoute);
 
 // Anything that isn't an /api/* route falls through to the static frontend (public/).
