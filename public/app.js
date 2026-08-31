@@ -125,12 +125,28 @@ async function loadTrends() {
   for (const alert of alerts) {
     const ownershipText =
       alert.ownership.kind === "FREE_AGENT" ? "Free agent" : `On ${alert.ownership.managerName}'s bench`;
+
+    const swapHtml = alert.suggestedSwaps?.length
+      ? `<div class="swap-suggestion">
+           <p><strong>Consider dropping:</strong></p>
+           <ul>
+             ${alert.suggestedSwaps
+               .map(
+                 (s) =>
+                   `<li>${s.playerName} (${s.position}) — ${s.recentAvgPoints.toFixed(1)} pts/gm recently</li>`
+               )
+               .join("")}
+           </ul>
+         </div>`
+      : "";
+
     const card = document.createElement("div");
     card.className = "card";
     card.innerHTML = `
       <h3>${alert.playerName} — ${TRIGGER_LABELS[alert.triggerType] ?? alert.triggerType}</h3>
       <p>${alert.detail}</p>
       <p>${ownershipText} · Week ${alert.week} · ${new Date(alert.firedAtEpochMillis).toLocaleString()}</p>
+      ${swapHtml}
     `;
     list.appendChild(card);
   }
