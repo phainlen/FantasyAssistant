@@ -67,4 +67,62 @@ debugRoute.get("/espn-teams", async (c) => {
   }
   const listData = (await listRes.json()) as { items: Array<{ $ref: string }> };
 
-  const teams = await
+  const teams = await Promise.all(
+    listData.items.map(async (item) => {
+      try {
+        const res = await fetch(item.$ref);
+        if (!res.ok) return { ref: item.$ref, error: `HTTP ${res.status}` };
+        const team = (await res.json()) as {
+          id: string;
+          abbreviation: string;
+          displayName: string;
+        };
+        return { id: team.id, abbreviation: team.abbreviation, displayName: team.displayName };
+      } catch (err) {
+        return { ref: item.$ref, error: err instanceof Error ? err.message : String(err) };
+      }
+    })
+  );
+
+  teams.sort((a, b) => Number((a as any).id ?? 0) - Number((b as any).id ?? 0));
+
+  return c.json({ season, teamCount: teams.length, teams });
+});
+
+/**
+ * TEMPORARY — inspects the current player cache against a live roster, to
+ * verify which cross-reference ID fields (espn_id, gsis_id) are populated.
+ */
+debugRoute.get("/player-cache", async (c) => {
+  const kv = new KvStore(c.env.DUCK_KV);
+  const config = await kv.getLeagueConfig();
+  if (!config) return c.json({ error: "not set up" }, 400);
+
+  const rosters = await sleeper.getRosters(config.leagueId);
+  const myRoster = rosters.find((r) => r.roster_id === config.rosterId);
+  const playersCache = (await kv.getPlayersCache()) ?? {};
+
+  const roster = (myRoster?.players ?? []).map((id) => ({
+    sleeperId: id,
+    cached: playersCache[id] ?? null
+  }));
+
+  return c.json({ roster });
+});
+
+/**
+ * TEMPORARY — verifies the real shape of DynastyProcess's free mirror of
+ * FantasyPros draft/preseason ECR rankings.
+ */
+debugRoute.get("/dp-rankings", async (c) => {
+  const url = "https://github.com/dynastyprocess/data/raw/master/files/db_fpecr_latest.csv";
+
+  const res = await fetch(url);
+  const rawText = await res.text();
+
+  return c.json({
+    requestedUrl: url,
+    httpStatus: res.status,
+    rawResponseSample: rawText.slice(0, 3000)
+  });
+});
