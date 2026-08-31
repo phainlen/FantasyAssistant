@@ -120,9 +120,24 @@ debugRoute.get("/dp-rankings", async (c) => {
   const res = await fetch(url);
   const rawText = await res.text();
 
+  // Parse just enough to list distinct (fp_page, page_type, ecr_type) combos,
+  // since this file bundles multiple ranking sets (redraft/dynasty/best-ball/etc.)
+  const lines = rawText.split("\n").filter(Boolean);
+  const header = lines[0].split(",");
+  const fpPageIdx = header.indexOf("fp_page");
+  const pageTypeIdx = header.indexOf("page_type");
+  const ecrTypeIdx = header.indexOf("ecr_type");
+
+  const combos = new Set<string>();
+  for (let i = 1; i < lines.length; i++) {
+    const cols = lines[i].split(",");
+    combos.add(`${cols[fpPageIdx]} | ${cols[pageTypeIdx]} | ${cols[ecrTypeIdx]}`);
+  }
+
   return c.json({
     requestedUrl: url,
     httpStatus: res.status,
-    rawResponseSample: rawText.slice(0, 3000)
+    totalRows: lines.length - 1,
+    distinctCombos: Array.from(combos).sort()
   });
 });
