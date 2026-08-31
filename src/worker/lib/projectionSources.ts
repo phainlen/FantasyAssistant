@@ -5,6 +5,7 @@ export interface ExternalProjection {
   fantasyProsRank?: number;
   proTeamId?: number; // only populated for DST entries; used for team-based matching instead of espn_id
   fullName?: string;
+  team?: string; // plain team abbreviation, used for DynastyProcess matching
 }
 
 // Rough points-per-position ceiling used to convert a 0-100 consensus score
