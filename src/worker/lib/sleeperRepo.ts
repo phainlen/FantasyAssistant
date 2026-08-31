@@ -153,7 +153,15 @@ export async function buildCandidates(
       const rawDp = await getDpRankings();
       dpProjections = rawDp
         .map((p) => {
-          if (!p.fullName || !p.team) return null;
+          if (!p.team) return null;
+    
+          // DST: Sleeper's playerId for a defense is the team abbreviation itself,
+          // so no name matching is needed — just use the (already-normalized) team code.
+          if (p.position === "DST") {
+            return { ...p, playerId: p.team };
+          }
+    
+          if (!p.fullName) return null;
           const key = `${normalizeName(p.fullName)}|${p.team}`;
           const sleeperId = nameTeamToSleeper.get(key);
           return sleeperId ? { ...p, playerId: sleeperId } : null;
@@ -162,7 +170,7 @@ export async function buildCandidates(
     } catch (err) {
       console.error("DynastyProcess rankings fetch failed", err);
     }
-
+    
     consensusByPlayer = computeConsensusProjections([...espnProjections, ...dpProjections]);
   }
 
