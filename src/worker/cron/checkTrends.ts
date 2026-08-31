@@ -35,7 +35,10 @@ export async function checkTrends(kv: KvStore, env: PushEnv): Promise<void> {
   const subscriptions = await kv.getPushSubscriptions();
   for (const alert of newAlerts) {
     const title = `${TRIGGER_LABELS[alert.triggerType]}: ${alert.playerName} (${alert.position}${alert.nflTeam ? ` - ${alert.nflTeam}` : ""})`;
-    const body = `${alert.detail} ${describeOwnership(alert.ownership)}.`;
+    const swapNote = alert.suggestedSwaps?.length
+      ? ` Consider dropping: ${alert.suggestedSwaps.map((s) => `${s.playerName} (${s.recentAvgPoints.toFixed(1)} pts/gm)`).join(", ")}.`
+      : "";
+    const body = `${alert.detail} ${describeOwnership(alert.ownership)}.${swapNote}`;
     for (const sub of subscriptions) {
       const result = await sendPush(env, sub, title, body);
       if (result === "expired") await kv.removePushSubscription(sub.endpoint);
