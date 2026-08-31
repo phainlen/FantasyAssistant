@@ -4,6 +4,7 @@ import { eligiblePositionsFor, isStartingSlot, type CandidatePlayer, type Roster
 import { getEspnProjections } from "./espnProjections";
 import { computeConsensusProjections, type ExternalProjection } from "./projectionSources";
 import { ESPN_TEAM_ID_TO_SLEEPER_ABBREV } from "./espnTeamMap";
+import { getDpRankings } from "./dpRankings";
 
 const PLAYER_CACHE_MAX_AGE_MILLIS = 24 * 60 * 60 * 1000;
 
@@ -130,12 +131,8 @@ export async function buildCandidates(
             const sleeperId = p.proTeamId !== undefined ? translateEspnDstId(p.proTeamId) : undefined;
             return sleeperId ? { ...p, playerId: sleeperId } : null;
           }
-
-          // Primary: espn_id match
           const byId = espnToSleeper.get(p.playerId);
           if (byId) return { ...p, playerId: byId };
-
-          // Fallback: normalized name + team match
           if (p.fullName && p.proTeamId !== undefined) {
             const team = translateEspnDstId(p.proTeamId);
             if (team) {
@@ -144,38 +141,53 @@ export async function buildCandidates(
               if (byName) return { ...p, playerId: byName };
             }
           }
-
           return null;
         })
         .filter((p): p is ExternalProjection => p !== null);
     } catch (err) {
       console.error("ESPN projections fetch failed", err);
     }
-    consensusByPlayer = computeConsensusProjections(espnProjections);
+
+    let dpProjections: ExternalProjection[] = [];
+    try {
+      const rawDp = await getDpRankings();
+      dpProjections = rawDp
+        .map((p) => {
+          if (!p.fullName || !p.team) return null;
+          const key = `${normalizeName(p.fullName)}|${p.team}`;
+          const sleeperId = nameTeamToSleeper.get(key);
+          return sleeperId ? { ...p, playerId: sleeperId } : null;
+        })
+        .filter((p): p is ExternalProjection => p !== null);
+    } catch (err) {
+      console.error("DynastyProcess rankings fetch failed", err);
+    }
+
+    consensusByPlayer = computeConsensusProjections([...espnProjections, ...dpProjections]);
   }
 
-  const candidates: CandidatePlayer[] = [];
-  for (const playerId of playerIds) {
-    const cached = playersCache[playerId];
-    if (!cached || !cached.position) continue;
+    const candidates: CandidatePlayer[] = [];
+    for (const playerId of playerIds) {
+      const cached = playersCache[playerId];
+      if (!cached || !cached.position) continue;
 
-    const recent = (scoresByPlayer.get(playerId) ?? []).slice(-3);
-    const projection =
-      recent.length > 0
-        ? recent.reduce((a, b) => a + b, 0) / recent.length
-        : (consensusByPlayer.get(playerId) ?? 0);
+      const recent = (scoresByPlayer.get(playerId) ?? []).slice(-3);
+      const projection =
+        recent.length > 0
+          ? recent.reduce((a, b) => a + b, 0) / recent.length
+          : (consensusByPlayer.get(playerId) ?? 0);
 
-    candidates.push({
-      playerId,
-      name: cached.fullName,
-      position: cached.position,
-      nflTeam: cached.team,
-      injuryStatus: cached.injuryStatus,
-      projectedPoints: projection
-    });
+      candidates.push({
+        playerId,
+        name: cached.fullName,
+        position: cached.position,
+        nflTeam: cached.team,
+        injuryStatus: cached.injuryStatus,
+        projectedPoints: projection
+      });
+    }
+    return candidates;
   }
-  return candidates;
-}
 
 export async function teamsForPlayers(kv: KvStore, playerIds: string[]): Promise<Record<string, string>> {
   const playersCache = (await kv.getPlayersCache()) ?? {};
