@@ -119,3 +119,26 @@ fieldset {
 legend { font-weight: 600; padding: 0 6px; }
 
 output { font-weight: 600; }
+
+.swap-suggestion {
+  margin-top: 0.75rem;
+  padding: 0.75rem 1rem;
+  background-color: #f0f7f2;
+  border-left: 3px solid #1B4332;
+  border-radius: 4px;
+}
+
+.swap-suggestion p {
+  margin: 0 0 0.35rem 0;
+  font-size: 0.9rem;
+}
+
+.swap-suggestion ul {
+  margin: 0;
+  padding-left: 1.25rem;
+}
+
+.swap-suggestion li {
+  font-size: 0.9rem;
+  line-height: 1.4;
+}
