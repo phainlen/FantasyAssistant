@@ -1,3 +1,4 @@
+// src/worker/lib/dpRankings.ts
 import type { ExternalProjection } from "./projectionSources";
 
 /**
@@ -51,16 +52,15 @@ export async function getDpRankings(): Promise<ExternalProjection[]> {
 
     const team = TEAM_ABBREV_FIX[row.team] ?? row.team;
 
+    // This is the "cleaned-up push" — replaces the earlier version that
+    // pushed first and then bolted `.team` on as an `any`-cast afterthought.
     projections.push({
-      playerId: row.id, // FantasyPros ID — not used for matching, kept for reference
+      playerId: row.id,
       position: row.pos,
       fantasyProsRank: ecr,
       fullName: row.player,
-      proTeamId: undefined
+      team
     });
-    // Stash team on a side channel since ExternalProjection's proTeamId is
-    // ESPN-specific; reuse fullName+team matching the same way sleeperRepo does.
-    (projections[projections.length - 1] as any).team = team;
   }
 
   return projections;
