@@ -146,6 +146,7 @@ const SLIDER_FIELDS = [
   ["ts-jump", "targetShareMinJumpPct", (v) => v.toFixed(0)],
   ["sc-multiplier", "snapCountSpikeMultiplier", (v) => v.toFixed(1)],
   ["sc-jump", "snapCountMinJumpPct", (v) => v.toFixed(0)]
+  ["swap-edge", "swapAlertMinPointsEdge", (v) => v.toFixed(1)]
 ];
 
 async function loadSettings() {
