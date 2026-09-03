@@ -14,11 +14,11 @@ export interface TrendAlertSettings {
   hotStreakMinGames: number;
   hotStreakMinPoints: number;
   targetShareSpikeMultiplier: number;
-  targetShareMinJumpPct: number; // percentage points, e.g. 8 == 8%
+  targetShareMinJumpPct: number;
   snapCountSpikeMultiplier: number;
   snapCountMinJumpPct: number;
   lineupReminderHoursBeforeLock: number;
-  swapAlertMinPointsEdge: number; // free agent's recent avg must beat your weakest eligible roster player by at least this many points
+  swapAlertMinPointsEdge: number;
 }
 
 export const DEFAULT_TREND_SETTINGS: TrendAlertSettings = {
@@ -55,69 +55,87 @@ export interface StoredWave extends KickoffWave {
   reminderSent: boolean;
 }
 
-const KEYS = {
-  leagueConfig: "league_config",
-  trendSettings: "trend_settings",
+const GLOBAL_KEYS = {
   playersCache: "players_cache",
   playersCacheUpdatedAt: "players_cache_updated_at",
-  lineupForWeek: (week: number) => `lineup_week_${week}`,
-  wavesForWeek: (week: number) => `waves_week_${week}`,
-  trendAlertFired: (playerId: string, week: number, trigger: string) =>
-    `trend_alert_${playerId}_${week}_${trigger}`,
-  recentTrendAlerts: "trend_alerts_recent",
-  pushSubscriptions: "push_subscriptions"
+  registeredUsers: "registered_users"
 } as const;
 
+/**
+ * Registry of every userKey (normalized Sleeper username) that has completed setup.
+ * Not scoped to any single user — the scheduled cron handler reads this to know
+ * which users to run planLineup/checkTrends/checkWaveReminders for.
+ */
+export async function getRegisteredUserKeys(kv: KVNamespace): Promise<string[]> {
+  return (await kv.get<string[]>(GLOBAL_KEYS.registeredUsers, "json")) ?? [];
+}
+
+export async function registerUserKey(kv: KVNamespace, userKey: string): Promise<void> {
+  const existing = await getRegisteredUserKeys(kv);
+  if (existing.includes(userKey)) return;
+  existing.push(userKey);
+  await kv.put(GLOBAL_KEYS.registeredUsers, JSON.stringify(existing));
+}
+
 export class KvStore {
-  constructor(private kv: KVNamespace) {}
+  /**
+   * userKey scopes every per-user method below (league config, settings, lineup,
+   * waves, trend alerts, push subscriptions) under this user's own KV keys. The
+   * player directory cache is shared across all users and stays unprefixed.
+   */
+  constructor(private kv: KVNamespace, private userKey: string) {}
+
+  private key(name: string): string {
+    return `user:${this.userKey}:${name}`;
+  }
 
   async getLeagueConfig(): Promise<LeagueConfig | null> {
-    return this.kv.get<LeagueConfig>(KEYS.leagueConfig, "json");
+    return this.kv.get<LeagueConfig>(this.key("league_config"), "json");
   }
 
   async saveLeagueConfig(config: LeagueConfig): Promise<void> {
-    await this.kv.put(KEYS.leagueConfig, JSON.stringify(config));
+    await this.kv.put(this.key("league_config"), JSON.stringify(config));
   }
 
   async getTrendSettings(): Promise<TrendAlertSettings> {
-    const stored = await this.kv.get<TrendAlertSettings>(KEYS.trendSettings, "json");
+    const stored = await this.kv.get<TrendAlertSettings>(this.key("trend_settings"), "json");
     return stored ?? DEFAULT_TREND_SETTINGS;
   }
 
   async saveTrendSettings(settings: TrendAlertSettings): Promise<void> {
-    await this.kv.put(KEYS.trendSettings, JSON.stringify(settings));
+    await this.kv.put(this.key("trend_settings"), JSON.stringify(settings));
   }
 
-  /** ~5MB payload, same as the Android player directory cache — refresh at most daily. */
+  /** Shared across all users — Sleeper's master player directory, not user-specific. */
   async getPlayersCache(): Promise<Record<string, CachedPlayer> | null> {
-    return this.kv.get<Record<string, CachedPlayer>>(KEYS.playersCache, "json");
+    return this.kv.get<Record<string, CachedPlayer>>(GLOBAL_KEYS.playersCache, "json");
   }
 
   async savePlayersCache(players: Record<string, CachedPlayer>): Promise<void> {
-    await this.kv.put(KEYS.playersCache, JSON.stringify(players));
-    await this.kv.put(KEYS.playersCacheUpdatedAt, String(Date.now()));
+    await this.kv.put(GLOBAL_KEYS.playersCache, JSON.stringify(players));
+    await this.kv.put(GLOBAL_KEYS.playersCacheUpdatedAt, String(Date.now()));
   }
 
   async playersCacheAgeMillis(): Promise<number | null> {
-    const updatedAt = await this.kv.get(KEYS.playersCacheUpdatedAt);
+    const updatedAt = await this.kv.get(GLOBAL_KEYS.playersCacheUpdatedAt);
     if (!updatedAt) return null;
     return Date.now() - Number(updatedAt);
   }
 
   async getLineupForWeek(week: number): Promise<LineupSlotRecommendation[] | null> {
-    return this.kv.get<LineupSlotRecommendation[]>(KEYS.lineupForWeek(week), "json");
+    return this.kv.get<LineupSlotRecommendation[]>(this.key(`lineup_week_${week}`), "json");
   }
 
   async saveLineupForWeek(week: number, lineup: LineupSlotRecommendation[]): Promise<void> {
-    await this.kv.put(KEYS.lineupForWeek(week), JSON.stringify(lineup));
+    await this.kv.put(this.key(`lineup_week_${week}`), JSON.stringify(lineup));
   }
 
   async getWavesForWeek(week: number): Promise<StoredWave[]> {
-    return (await this.kv.get<StoredWave[]>(KEYS.wavesForWeek(week), "json")) ?? [];
+    return (await this.kv.get<StoredWave[]>(this.key(`waves_week_${week}`), "json")) ?? [];
   }
 
   async saveWavesForWeek(week: number, waves: StoredWave[]): Promise<void> {
-    await this.kv.put(KEYS.wavesForWeek(week), JSON.stringify(waves));
+    await this.kv.put(this.key(`waves_week_${week}`), JSON.stringify(waves));
   }
 
   async markWaveReminderSent(week: number, waveIndex: number): Promise<void> {
@@ -129,41 +147,40 @@ export class KvStore {
   }
 
   async alreadyFiredTrendAlert(playerId: string, week: number, trigger: string): Promise<boolean> {
-    const val = await this.kv.get(KEYS.trendAlertFired(playerId, week, trigger));
+    const val = await this.kv.get(this.key(`trend_alert_${playerId}_${week}_${trigger}`));
     return val !== null;
   }
 
   async recordTrendAlert(alert: TrendAlert): Promise<void> {
     await this.kv.put(
-      KEYS.trendAlertFired(alert.playerId, alert.week, alert.triggerType),
+      this.key(`trend_alert_${alert.playerId}_${alert.week}_${alert.triggerType}`),
       "1",
-      { expirationTtl: 60 * 60 * 24 * 30 } // auto-expire dedup markers after a month
+      { expirationTtl: 60 * 60 * 24 * 30 }
     );
-
     const recent = await this.getRecentTrendAlerts();
     recent.unshift(alert);
-    await this.kv.put(KEYS.recentTrendAlerts, JSON.stringify(recent.slice(0, 50)));
+    await this.kv.put(this.key("trend_alerts_recent"), JSON.stringify(recent.slice(0, 50)));
   }
 
   async getRecentTrendAlerts(): Promise<TrendAlert[]> {
-    return (await this.kv.get<TrendAlert[]>(KEYS.recentTrendAlerts, "json")) ?? [];
+    return (await this.kv.get<TrendAlert[]>(this.key("trend_alerts_recent"), "json")) ?? [];
   }
 
   async getPushSubscriptions(): Promise<PushSubscriptionRecord[]> {
-    return (await this.kv.get<PushSubscriptionRecord[]>(KEYS.pushSubscriptions, "json")) ?? [];
+    return (await this.kv.get<PushSubscriptionRecord[]>(this.key("push_subscriptions"), "json")) ?? [];
   }
 
   async addPushSubscription(sub: Omit<PushSubscriptionRecord, "addedAtEpochMillis">): Promise<void> {
     const existing = await this.getPushSubscriptions();
     if (existing.some((s) => s.endpoint === sub.endpoint)) return;
     existing.push({ ...sub, addedAtEpochMillis: Date.now() });
-    await this.kv.put(KEYS.pushSubscriptions, JSON.stringify(existing));
+    await this.kv.put(this.key("push_subscriptions"), JSON.stringify(existing));
   }
 
   async removePushSubscription(endpoint: string): Promise<void> {
     const existing = await this.getPushSubscriptions();
     await this.kv.put(
-      KEYS.pushSubscriptions,
+      this.key("push_subscriptions"),
       JSON.stringify(existing.filter((s) => s.endpoint !== endpoint))
     );
   }
