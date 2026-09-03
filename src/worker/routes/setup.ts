@@ -1,13 +1,16 @@
 import { Hono } from "hono";
-import { KvStore } from "../lib/kv";
+import { KvStore, registerUserKey } from "../lib/kv";
 import { sleeper } from "../lib/sleeper";
 import { planLineup } from "../cron/planLineup";
+import { getSessionUserKey, normalizeUserKey, setSessionUser } from "../lib/session";
 import type { Env } from "../index";
 
 export const setupRoute = new Hono<{ Bindings: Env }>();
 
 setupRoute.get("/", async (c) => {
-  const kv = new KvStore(c.env.DUCK_KV);
+  const userKey = getSessionUserKey(c);
+  if (!userKey) return c.json({ config: null });
+  const kv = new KvStore(c.env.DUCK_KV, userKey);
   const config = await kv.getLeagueConfig();
   return c.json({ config });
 });
@@ -18,7 +21,8 @@ setupRoute.post("/", async (c) => {
     return c.json({ error: "username and leagueName are required" }, 400);
   }
 
-  const kv = new KvStore(c.env.DUCK_KV);
+  const userKey = normalizeUserKey(body.username);
+  const kv = new KvStore(c.env.DUCK_KV, userKey);
 
   try {
     const nflState = await sleeper.getNflState();
@@ -28,7 +32,6 @@ setupRoute.post("/", async (c) => {
     if (!league) {
       return c.json({ error: `No league named "${body.leagueName}" found for ${body.username}` }, 404);
     }
-
     const rosters = await sleeper.getRosters(league.league_id);
     const myRoster = rosters.find((r) => r.owner_id === user.user_id);
     if (!myRoster) {
@@ -43,10 +46,10 @@ setupRoute.post("/", async (c) => {
       rosterId: myRoster.roster_id
     };
     await kv.saveLeagueConfig(config);
+    await registerUserKey(c.env.DUCK_KV, userKey);
+    setSessionUser(c, body.username);
 
-    // Best-effort immediate plan so the UI has something to show right away.
     c.executionCtx.waitUntil(planLineup(kv).catch((err) => console.error("Initial plan failed", err)));
-
     return c.json({ config });
   } catch (err) {
     return c.json({ error: err instanceof Error ? err.message : "Setup failed" }, 500);
