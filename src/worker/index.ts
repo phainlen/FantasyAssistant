@@ -4,7 +4,7 @@ import { settingsRoute } from "./routes/settings";
 import { lineupRoute } from "./routes/lineup";
 import { trendsRoute } from "./routes/trends";
 import { pushRoute } from "./routes/push";
-import { KvStore } from "./lib/kv";
+import { KvStore, getRegisteredUserKeys } from "./lib/kv";
 import { planLineup } from "./cron/planLineup";
 import { checkWaveReminders } from "./cron/checkWaveReminders";
 import { checkTrends } from "./cron/checkTrends";
@@ -41,8 +41,8 @@ export default {
    * and this app needs exactly 3.
    */
   async scheduled(event: ScheduledEvent, env: Env, ctx: ExecutionContext): Promise<void> {
-    const kv = new KvStore(env.DUCK_KV);
     const pushEnv = { VAPID_PUBLIC_KEY: env.VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY: env.VAPID_PRIVATE_KEY, VAPID_SUBJECT: env.VAPID_SUBJECT };
+    const userKeys = await getRegisteredUserKeys(env.DUCK_KV);
 
     switch (event.cron) {
       case "0 */6 * * *":
